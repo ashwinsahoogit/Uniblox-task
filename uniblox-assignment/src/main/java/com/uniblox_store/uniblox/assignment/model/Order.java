@@ -9,7 +9,7 @@ public class Order {
     private String userId;
     private List<CartItem> products;
     private double totalAmount;
-    private String couponId; // Optional
+    private String couponId;
     private double discount; // Calculated if coupon applied
     private double orderValue; // Final amount after discount
 }
