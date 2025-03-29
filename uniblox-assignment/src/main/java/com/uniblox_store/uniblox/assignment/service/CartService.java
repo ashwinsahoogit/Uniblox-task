@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import com.uniblox_store.uniblox.assignment.model.Cart;
 import com.uniblox_store.uniblox.assignment.model.CartItem;
 import com.uniblox_store.uniblox.assignment.model.Product;
+import com.uniblox_store.uniblox.assignment.exception.ProductNotFoundException;
+import com.uniblox_store.uniblox.assignment.exception.InvalidQuantityException;
 
 @Service
 public class CartService {
@@ -26,9 +28,13 @@ public class CartService {
 
     // Add item to cart
     public Cart addItemToCart(String userId, String productId, int quantity) {
+        if (quantity <= 0) {
+            throw new InvalidQuantityException("Quantity must be greater than 0");
+        }
+
         Product product = productService.getProductById(productId);
         if (product == null) {
-            throw new RuntimeException("Product not found");
+            throw new ProductNotFoundException("Product not found");
         }
 
         Cart cart = userCarts.getOrDefault(userId, new Cart(userId, new ArrayList<>()));
@@ -72,6 +78,8 @@ public class CartService {
 
     // Clear the cart after checkout
     public void clearCart(String userId) {
-        userCarts.remove(userId);
+        Cart cart = getCartByUserId(userId);
+        cart.getItems().clear();
+        userCarts.put(userId, cart);
     }
 }
