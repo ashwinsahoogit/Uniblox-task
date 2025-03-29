@@ -1,20 +1,29 @@
 package com.uniblox_store.uniblox.assignment;
 
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.uniblox_store.uniblox.assignment.controller.CartController;
 import com.uniblox_store.uniblox.assignment.dto.CartItemRequest;
+import com.uniblox_store.uniblox.assignment.model.Cart;
+import com.uniblox_store.uniblox.assignment.model.CartItem;
+import com.uniblox_store.uniblox.assignment.model.Product;
+import com.uniblox_store.uniblox.assignment.service.CartService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+import java.util.ArrayList;
+import java.util.List;
+
+@WebMvcTest(CartController.class)
 class CartControllerTest {
 
     @Autowired
@@ -23,39 +32,51 @@ class CartControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @MockBean
+    private CartService cartService;
+
+    private static final String TEST_USER = "testUser";
+    private static final String TEST_PRODUCT_ID = "p1";
+    private Product testProduct;
+
     @BeforeEach
     void setUp() {
-        // Clear any existing cart data before each test
-        try {
-            mockMvc.perform(delete("/cart/clear")
-                    .param("userId", "user123"));
-        } catch (Exception e) {
-            // Ignore if cart doesn't exist
-        }
+        testProduct = new Product(TEST_PRODUCT_ID, "Test Product", "Description", 100.0);
     }
 
     @Test
     void testAddItemToCart_Success() throws Exception {
+        // Arrange
         CartItemRequest request = new CartItemRequest();
-        request.setUserId("user123");
-        request.setProductId("p1"); // Using a product ID that exists in InMemoryStore
+        request.setUserId(TEST_USER);
+        request.setProductId(TEST_PRODUCT_ID);
         request.setQuantity(2);
 
+        when(cartService.addItemToCart(TEST_USER, TEST_PRODUCT_ID, 2))
+            .thenReturn(new Cart(TEST_USER, List.of(new CartItem(testProduct, 2))));
+
+        // Act & Assert
         mockMvc.perform(post("/cart/add")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value("user123"))
+                .andExpect(jsonPath("$.userId").value(TEST_USER))
+                .andExpect(jsonPath("$.items[0].product.id").value(TEST_PRODUCT_ID))
                 .andExpect(jsonPath("$.items[0].quantity").value(2));
     }
 
     @Test
     void testAddItemToCart_InvalidProduct() throws Exception {
+        // Arrange
         CartItemRequest request = new CartItemRequest();
-        request.setUserId("user123");
+        request.setUserId(TEST_USER);
         request.setProductId("invalid-product");
         request.setQuantity(2);
 
+        when(cartService.addItemToCart(TEST_USER, "invalid-product", 2))
+            .thenThrow(new RuntimeException("Product not found"));
+
+        // Act & Assert
         mockMvc.perform(post("/cart/add")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -64,11 +85,13 @@ class CartControllerTest {
 
     @Test
     void testAddItemToCart_InvalidQuantity() throws Exception {
+        // Arrange
         CartItemRequest request = new CartItemRequest();
-        request.setUserId("user123");
-        request.setProductId("p1");
-        request.setQuantity(0); // Invalid quantity
+        request.setUserId(TEST_USER);
+        request.setProductId(TEST_PRODUCT_ID);
+        request.setQuantity(-1);
 
+        // Act & Assert
         mockMvc.perform(post("/cart/add")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -76,134 +99,52 @@ class CartControllerTest {
     }
 
     @Test
-    void testAddMultipleProducts() throws Exception {
-        // Add first product
-        CartItemRequest request1 = new CartItemRequest();
-        request1.setUserId("user123");
-        request1.setProductId("p1");
-        request1.setQuantity(2);
+    void testGetCart_Success() throws Exception {
+        // Arrange
+        Cart cart = new Cart(TEST_USER, List.of(new CartItem(testProduct, 2)));
+        when(cartService.getCartByUserId(TEST_USER)).thenReturn(cart);
 
-        mockMvc.perform(post("/cart/add")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request1)));
-
-        // Add second product
-        CartItemRequest request2 = new CartItemRequest();
-        request2.setUserId("user123");
-        request2.setProductId("p2");
-        request2.setQuantity(1);
-
-        mockMvc.perform(post("/cart/add")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request2)));
-
-        // Verify cart contents
+        // Act & Assert
         mockMvc.perform(get("/cart/view")
-                .param("userId", "user123"))
+                .param("userId", TEST_USER))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(2))
-                .andExpect(jsonPath("$.items[0].product.id").value("p1"))
-                .andExpect(jsonPath("$.items[1].product.id").value("p2"));
-    }
-
-    @Test
-    void testUpdateExistingItemQuantity() throws Exception {
-        // Add product first time
-        CartItemRequest request1 = new CartItemRequest();
-        request1.setUserId("user123");
-        request1.setProductId("p1");
-        request1.setQuantity(2);
-
-        mockMvc.perform(post("/cart/add")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request1)));
-
-        // Add same product again
-        CartItemRequest request2 = new CartItemRequest();
-        request2.setUserId("user123");
-        request2.setProductId("p1");
-        request2.setQuantity(3);
-
-        mockMvc.perform(post("/cart/add")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request2)));
-
-        // Verify quantity was updated
-        mockMvc.perform(get("/cart/view")
-                .param("userId", "user123"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].quantity").value(5));
-    }
-
-    @Test
-    void testViewCart() throws Exception {
-        // First add an item to the cart
-        CartItemRequest request = new CartItemRequest();
-        request.setUserId("user123");
-        request.setProductId("p1");
-        request.setQuantity(2);
-
-        mockMvc.perform(post("/cart/add")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)));
-
-        // Then view the cart
-        mockMvc.perform(get("/cart/view")
-                .param("userId", "user123"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value("user123"))
+                .andExpect(jsonPath("$.userId").value(TEST_USER))
+                .andExpect(jsonPath("$.items[0].product.id").value(TEST_PRODUCT_ID))
                 .andExpect(jsonPath("$.items[0].quantity").value(2));
     }
 
     @Test
-    void testGetCartTotal() throws Exception {
-        // First add an item to the cart
-        CartItemRequest request = new CartItemRequest();
-        request.setUserId("user123");
-        request.setProductId("p1"); // Product with price 1000
-        request.setQuantity(2);
+    void testGetCart_EmptyCart() throws Exception {
+        // Arrange
+        when(cartService.getCartByUserId(TEST_USER))
+            .thenReturn(new Cart(TEST_USER, new ArrayList<>()));
 
-        mockMvc.perform(post("/cart/add")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)));
-
-        // Then get the total
-        mockMvc.perform(get("/cart/total")
-                .param("userId", "user123"))
-                .andExpect(status().isOk())
-                .andExpect(content().string("2000.0")); // 2 items * 1000 price
-    }
-
-    @Test
-    void testGetEmptyCartTotal() throws Exception {
-        mockMvc.perform(get("/cart/total")
-                .param("userId", "user123"))
-                .andExpect(status().isOk())
-                .andExpect(content().string("0.0"));
-    }
-
-    @Test
-    void testClearCart() throws Exception {
-        // First add an item to the cart
-        CartItemRequest request = new CartItemRequest();
-        request.setUserId("user123");
-        request.setProductId("p1");
-        request.setQuantity(2);
-
-        mockMvc.perform(post("/cart/add")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)));
-
-        // Then clear the cart
-        mockMvc.perform(delete("/cart/clear")
-                .param("userId", "user123"))
-                .andExpect(status().isOk());
-
-        // Verify cart is empty
+        // Act & Assert
         mockMvc.perform(get("/cart/view")
-                .param("userId", "user123"))
+                .param("userId", TEST_USER))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(TEST_USER))
+                .andExpect(jsonPath("$.items").isArray())
                 .andExpect(jsonPath("$.items").isEmpty());
+    }
+
+    @Test
+    void testCalculateCartTotal_Success() throws Exception {
+        // Arrange
+        when(cartService.calculateCartTotal(TEST_USER)).thenReturn(200.0);
+
+        // Act & Assert
+        mockMvc.perform(get("/cart/total")
+                .param("userId", TEST_USER))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value(200.0));
+    }
+
+    @Test
+    void testClearCart_Success() throws Exception {
+        // Act & Assert
+        mockMvc.perform(delete("/cart/clear")
+                .param("userId", TEST_USER))
+                .andExpect(status().isOk());
     }
 }

@@ -23,9 +23,21 @@ public class ProductController {
         return ResponseEntity.ok(products);
     }
 
+    @GetMapping("/")
+    public ResponseEntity<?> handleTrailingSlash() {
+        return ResponseEntity.notFound().build();
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Product> getProductById(@PathVariable String id) {
-        Product product = productService.getProductById(id);
-        return ResponseEntity.ok(product);
+        try {
+            Product product = productService.getProductById(id);
+            if (product == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(product);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 } 

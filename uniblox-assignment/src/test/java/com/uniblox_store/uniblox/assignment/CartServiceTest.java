@@ -5,6 +5,7 @@ import com.uniblox_store.uniblox.assignment.model.CartItem;
 import com.uniblox_store.uniblox.assignment.model.Product;
 import com.uniblox_store.uniblox.assignment.service.CartService;
 import com.uniblox_store.uniblox.assignment.service.ProductService;
+import com.uniblox_store.uniblox.assignment.exception.ProductNotFoundException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,9 +31,9 @@ class CartServiceTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         
-        // Setup common test products
-        product1 = new Product("p1", "Product1", "Desc1", 100.0);
-        product2 = new Product("p2", "Product2", "Desc2", 50.0);
+        // Setup common test products with prices matching InMemoryStore
+        product1 = new Product("p1", "Laptop", "Gaming Laptop", 1000.0);
+        product2 = new Product("p2", "Phone", "Smartphone", 500.0);
         
         // Setup common mocks
         when(productService.getProductById("p1")).thenReturn(product1);
@@ -53,7 +54,7 @@ class CartServiceTest {
         assertNotNull(updatedCart);
         assertEquals(1, updatedCart.getItems().size());
         CartItem cartItem = updatedCart.getItems().get(0);
-        assertEquals("Product1", cartItem.getProduct().getName());
+        assertEquals("Laptop", cartItem.getProduct().getName());
         assertEquals(2, cartItem.getQuantity());
     }
 
@@ -80,7 +81,7 @@ class CartServiceTest {
         when(productService.getProductById(productId)).thenReturn(null);
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> 
+        assertThrows(ProductNotFoundException.class, () -> 
             cartService.addItemToCart(userId, productId, 1)
         );
     }
@@ -89,14 +90,14 @@ class CartServiceTest {
     void testCalculateCartTotal_ShouldReturnCorrectTotal() {
         // Arrange
         String userId = "user1";
-        cartService.addItemToCart(userId, "p1", 2);
-        cartService.addItemToCart(userId, "p2", 1);
+        cartService.addItemToCart(userId, "p1", 2); // 2 laptops at 1000 each
+        cartService.addItemToCart(userId, "p2", 1); // 1 phone at 500
 
         // Act
         double total = cartService.calculateCartTotal(userId);
 
         // Assert
-        assertEquals(250.0, total);
+        assertEquals(2500.0, total); // (2 * 1000) + (1 * 500)
     }
 
     @Test

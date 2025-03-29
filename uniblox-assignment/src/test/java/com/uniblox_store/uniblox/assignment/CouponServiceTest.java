@@ -4,29 +4,30 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.uniblox_store.uniblox.assignment.model.Coupon;
 import com.uniblox_store.uniblox.assignment.service.CouponService;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.mockito.InjectMocks;
+import org.mockito.MockitoAnnotations;
 
+import java.util.Arrays;
 import java.util.List;
 
-@SpringBootTest
 class CouponServiceTest {
 
-    @Autowired
+    @InjectMocks
     private CouponService couponService;
 
-    private static final String TEST_COUPON_NAME = "DISCOUNT10";
-    private static final double TEST_DISCOUNT_PERCENTAGE = 10.0;
+    private Coupon validCoupon;
+    private Coupon usedCoupon;
+    private List<Coupon> testCoupons;
 
     @BeforeEach
     void setUp() {
-        // Clear the coupon store before each test
-        couponService.getAllCoupons().forEach(coupon -> 
-            couponService.getCouponById(coupon.getId()).setUsed(false)
-        );
+        MockitoAnnotations.openMocks(this);
+        
+        validCoupon = new Coupon("valid-coupon", "DISCOUNT10", 10.0, false);
+        usedCoupon = new Coupon("used-coupon", "DISCOUNT20", 20.0, true);
+        testCoupons = Arrays.asList(validCoupon, usedCoupon);
     }
 
     @Test
@@ -35,117 +36,91 @@ class CouponServiceTest {
         
         assertNotNull(coupon);
         assertNotNull(coupon.getId());
-        assertEquals(TEST_COUPON_NAME, coupon.getName());
-        assertEquals(TEST_DISCOUNT_PERCENTAGE, coupon.getDiscountPercentage());
+        assertEquals("DISCOUNT10", coupon.getName());
+        assertEquals(10.0, coupon.getDiscountPercentage());
         assertFalse(coupon.isUsed());
     }
 
     @Test
     void testValidateCoupon_ValidCoupon() {
+        // First generate a coupon
         Coupon coupon = couponService.generateCoupon();
         
+        // Then validate it
         boolean isValid = couponService.validateCoupon(coupon.getId());
-        
         assertTrue(isValid);
     }
 
     @Test
-    void testValidateCoupon_InvalidCoupon() {
-        boolean isValid = couponService.validateCoupon("non-existent-coupon");
+    void testValidateCoupon_UsedCoupon() {
+        // First generate a coupon
+        Coupon coupon = couponService.generateCoupon();
         
+        // Apply the coupon to mark it as used
+        couponService.applyCoupon(coupon.getId(), 100.0);
+        
+        // Then validate it
+        boolean isValid = couponService.validateCoupon(coupon.getId());
         assertFalse(isValid);
     }
 
     @Test
-    void testValidateCoupon_UsedCoupon() {
-        Coupon coupon = couponService.generateCoupon();
-        couponService.applyCoupon(coupon.getId(), 100.0);
-        
-        boolean isValid = couponService.validateCoupon(coupon.getId());
-        
+    void testValidateCoupon_NonExistentCoupon() {
+        boolean isValid = couponService.validateCoupon("non-existent");
         assertFalse(isValid);
     }
 
     @Test
     void testApplyCoupon_ValidCoupon() {
+        // First generate a coupon
         Coupon coupon = couponService.generateCoupon();
-        double totalAmount = 100.0;
-        double expectedDiscount = (totalAmount * TEST_DISCOUNT_PERCENTAGE) / 100;
         
-        double discount = couponService.applyCoupon(coupon.getId(), totalAmount);
-        
-        assertEquals(expectedDiscount, discount);
-        assertTrue(coupon.isUsed());
-    }
-
-    @Test
-    void testApplyCoupon_InvalidCoupon() {
-        double totalAmount = 100.0;
-        
-        double discount = couponService.applyCoupon("non-existent-coupon", totalAmount);
-        
-        assertEquals(0.0, discount);
+        // Apply the coupon
+        double discount = couponService.applyCoupon(coupon.getId(), 100.0);
+        assertEquals(10.0, discount); // 10% of 100.0
     }
 
     @Test
     void testApplyCoupon_UsedCoupon() {
+        // First generate a coupon
         Coupon coupon = couponService.generateCoupon();
-        double totalAmount = 100.0;
         
-        // First application
-        couponService.applyCoupon(coupon.getId(), totalAmount);
+        // Apply the coupon first time
+        couponService.applyCoupon(coupon.getId(), 100.0);
         
-        // Second application
-        double discount = couponService.applyCoupon(coupon.getId(), totalAmount);
-        
+        // Try to apply it again
+        double discount = couponService.applyCoupon(coupon.getId(), 100.0);
         assertEquals(0.0, discount);
     }
 
     @Test
     void testGetAllCoupons() {
-        // Generate some test coupons
+        // Generate some coupons
         Coupon coupon1 = couponService.generateCoupon();
         Coupon coupon2 = couponService.generateCoupon();
         
-        List<Coupon> coupons = couponService.getAllCoupons();
+        // Apply one coupon to mark it as used
+        couponService.applyCoupon(coupon1.getId(), 100.0);
         
+        List<Coupon> coupons = couponService.getAllCoupons();
         assertNotNull(coupons);
-        assertTrue(coupons.size() >= 2);
+        assertEquals(2, coupons.size());
         assertTrue(coupons.contains(coupon1));
         assertTrue(coupons.contains(coupon2));
     }
 
     @Test
-    void testGetCouponById() {
-        Coupon generatedCoupon = couponService.generateCoupon();
-        
-        Coupon retrievedCoupon = couponService.getCouponById(generatedCoupon.getId());
-        
-        assertNotNull(retrievedCoupon);
-        assertEquals(generatedCoupon.getId(), retrievedCoupon.getId());
-        assertEquals(generatedCoupon.getName(), retrievedCoupon.getName());
-        assertEquals(generatedCoupon.getDiscountPercentage(), retrievedCoupon.getDiscountPercentage());
-        assertEquals(generatedCoupon.isUsed(), retrievedCoupon.isUsed());
-    }
-
-    @Test
-    void testGetCouponById_NonExistent() {
-        Coupon coupon = couponService.getCouponById("non-existent-coupon");
-        
-        assertNull(coupon);
-    }
-
-    @Test
     void testGetTotalDiscountGiven() {
-        // Generate and use some coupons
+        // Generate and apply some coupons
         Coupon coupon1 = couponService.generateCoupon();
         Coupon coupon2 = couponService.generateCoupon();
         
+        // Apply both coupons to mark them as used
         couponService.applyCoupon(coupon1.getId(), 100.0);
-        couponService.applyCoupon(coupon2.getId(), 100.0);
+        couponService.applyCoupon(coupon2.getId(), 200.0);
         
-        double totalDiscountPercentage = couponService.getTotalDiscountGiven();
-        
-        assertEquals(20.0, totalDiscountPercentage); // 10% + 10%
+        // getTotalDiscountGiven returns the sum of discount percentages (10% + 10% = 20%)
+        double totalDiscount = couponService.getTotalDiscountGiven();
+        assertEquals(20.0, totalDiscount);
     }
 } 

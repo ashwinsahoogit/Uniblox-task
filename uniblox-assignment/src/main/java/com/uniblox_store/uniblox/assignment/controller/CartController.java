@@ -6,6 +6,7 @@ import com.uniblox_store.uniblox.assignment.service.CartService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/cart")
@@ -20,7 +21,7 @@ public class CartController {
 
     //Add an item to the user's cart
     @PostMapping("/add")
-    public ResponseEntity<?> addItemToCart(@RequestBody CartItemRequest request) {
+    public ResponseEntity<?> addItemToCart(@Valid @RequestBody CartItemRequest request) {
         try {
             Cart cart = cartService.addItemToCart(request.getUserId(), request.getProductId(), request.getQuantity());
             return ResponseEntity.ok(cart);

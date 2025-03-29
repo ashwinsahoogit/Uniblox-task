@@ -43,4 +43,9 @@ public class ProductService {
     public List<Product> getAllProducts() {
         return List.copyOf(inMemoryStore.productMap.values());
     }
+
+    public void clear() {
+        inMemoryStore.productMap.clear();
+        inMemoryStore.initProducts(); // Reinitialize with default products
+    }
 }
