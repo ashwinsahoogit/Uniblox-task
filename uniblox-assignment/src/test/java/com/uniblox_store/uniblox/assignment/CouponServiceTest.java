@@ -19,15 +19,13 @@ class CouponServiceTest {
 
     private Coupon validCoupon;
     private Coupon usedCoupon;
-    private List<Coupon> testCoupons;
-
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
         
         validCoupon = new Coupon("valid-coupon", "DISCOUNT10", 10.0, false);
         usedCoupon = new Coupon("used-coupon", "DISCOUNT20", 20.0, true);
-        testCoupons = Arrays.asList(validCoupon, usedCoupon);
+        Arrays.asList(validCoupon, usedCoupon);
     }
 
     @Test
